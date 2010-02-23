@@ -8,4 +8,4 @@ You can either include the individual files into your application or put them so
 
 ## License
 
-These files are licensed under the GNU Lesser General Public License. You can read more about it at http://www.opensource.org/licenses/lgpl-2.1.php
+These files are licensed under the GNU Lesser General Public License. You can read more about it at [http://www.opensource.org/licenses/lgpl-2.1.php](http://www.opensource.org/licenses/lgpl-2.1.php)
