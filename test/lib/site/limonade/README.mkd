@@ -1,0 +1,491 @@
+# Limonade: README
+
+Limonade is a PHP micro framework for rapid web development and prototyping.
+
+It's inspired by frameworks like [Sinatra](http://www.sinatrarb.com/) or [Camping](http://github.com/why/camping/tree/master) in Ruby, or [Orbit](http://orbit.luaforge.net/) in Lua. It aims to be simple, lightweight and extremly flexible.
+
+Limonade provides functions that complete the PHP basic set, while keeping consistency with native functions and sitting up on them.
+
+Limonade is easy to learn and provides everything that you can expect from a modern framework (MVC, REST, ...)
+
+
+
+    require_once 'lib/limonade.php';
+    dispatch('/', 'hello');
+        function hello()
+        {
+            return 'Hello world!';
+        }
+    run();
+
+## About this document ##
+
+This document provides a quick but comprehensive guide of Limonade features.
+
+For more informations, you can see the [website](http://limonade.sofa-design.net/), 
+[public API documentation](http://limonade.sofa-design.net/api/), [examples](http://limonade.sofa-design.net/examples.htm), and of course the [source code](http://github.com/sofadesign/limonade/blob/master/lib/limonade.php) which is still the best documentation.
+
+A [discussion group](http://groups.google.fr/group/limonade) is also available for more exchanges.
+
+    
+## Routes ##
+
+Routes combine an HTTP method with an URL matching pattern and a function
+
+    dispatch('/', 'my_get_function');
+    # same as dispatch_get('my_get_function');
+        function my_get_function()
+        {
+            // Show something
+        }
+    
+    dispatch_post('/', 'my_post_function'); 
+        function my_post_function()
+        {
+            // Create something
+        }
+        
+    dispatch_update('/', 'my_update_function'); 
+        function my_update_function()
+        {
+            // Update something
+        }
+        
+    dispatch_delete('/', 'my_delete_function'); 
+        function my_delete_function()
+        {
+            // Delete something
+        }
+
+
+Routes are matched in order they are declared.
+The search is performed with a path given through browser URL:
+
+    http://localhost/my_app/?u=/my/path
+    http://localhost/my_app/?uri=/my/path
+    http://localhost/my_app/index.php?/my/path
+    http://localhost/my_app/?/my/path
+
+When `PUT` or `DELETE` methods are not supported (like in HTML form submision), you can use the `_method` parameter in `POST` requests: it will override the `POST` method.
+
+    <form action="<?=url_for('profile_update')?>" method="post">
+        <p><input type="hidden" name="_method" value="PUT" id="_method"></p>
+        <p>... your form fields</p>
+        <p><input type="submit" value="Update"></p>
+    </form>
+
+Patterns may include named parameters. Associated values of those parameters are available with the `params()` function.
+
+    dispatch('/hello/:name', 'hello');
+        function  hello()
+        {
+            $name = params('name');
+            return 'Hello $name';
+        }
+
+Patterns may also include wildcard parameters. Associated values are available through numeric indexes, in the same order as in the pattern.
+
+    dispatch('/writing/*/to/*', 'my_letter');
+        function my_letter()
+        {
+            # Matches /writing/an_email/to/joe
+            $type = params(0); # "an_email"
+            $name = params(1); # "joe"
+            # ...
+        }
+        
+    dispatch('/files/*.*', 'share_files');
+        function share_files()
+        {
+            # matches /files/readme.txt
+            $ext = params(1);
+            $filename = params(0).".".$ext;
+            # ...
+        }
+
+Unlike the simple wildcard character `*`, the double wildcard character `**` specifies a string that may contain a `/`
+
+    dispatch('/files/**', 'share_files')
+        function share_files()
+        {
+            # Matches /files/my/own/file.txt
+            $filename = params(0); # my/own/file.txt
+        }
+
+Pattern may also be a regular expression if it begins with a `^`
+
+    dispatch('^/my/own/(\d+)/regexp', 'my_func');
+        function my_func()
+        {
+            # matches /my/own/12/regexp
+            $num = params(0);
+        }
+        
+Wildcard parameters and regular expressions may be named too.
+
+    dispatch(array('/say/*/to/**', array("what", "name")), 'my_func');
+        function my_func()
+        {
+            # Matches /say/hello/to/joe
+            $what = params('what');
+            $name = params('name');
+        }
+
+Functions called by routes can be written anywhere before the execution of the  `run()` function. They can also be grouped in controllers files stored in a `controllers/` folder.
+
+    /                   # site root
+     - index.php        # file with routes declarations and run()
+     + controllers/
+         - blog.php     # functions for blog: blog_index(), blog_show(),
+                        #  blog_post()...
+         - comments.php # comments_for_a_post(), comment_add()...
+
+
+
+This folder location can be set with the `controllers_dir` option.
+
+    option('controllers_dir', dirname(__FILE__).'/other/dir/for/controllers');
+
+### Url rewriting ###
+
+Since version 0.4.1, Limonade supports url rewriting.
+
+With a `.htaccess` in your app folder
+
+    <IfModule mod_rewrite.c>
+      Options +FollowSymlinks
+      Options +Indexes
+      RewriteEngine on
+      # RewriteBase /my_app/ # if your app is in a subfolder
+
+      # test string is a valid files
+      RewriteCond %{SCRIPT_FILENAME} !-f
+      # test string is a valid directory
+      RewriteCond %{SCRIPT_FILENAME} !-d
+
+      RewriteRule ^(.*)$   index.php?/$1    [NC,L]
+    </IfModule>
+
+And setting explicitly the `option('base_uri')` in your configure() function:
+
+    option('base_uri', '/my_app'); # '/' or same as the RewriteBase in your .htaccess
+
+You can access your site with urls like `http://your.new-website.com/my/limonade/path` instead of `http://your.new-website.com/?/my/limonade/path`.
+
+
+## Views and templates ##
+
+Template files are located by default in `views/` folder.
+Views folder location can be set with the `views_dir` option.
+
+    option('views_dir', dirname(__FILE__).'/other/dir/for/views');
+
+To pass variables to templates, we use the function `set ()`
+
+    set('name', 'John Doe');
+    render('index.html.php');
+    
+Variables may also be passed directly:
+
+    render('index.html.php', null, array('name' => 'John Doe' ));
+    
+
+
+`set_or_default` function allows passing a variable, and if it's empty, a default value. It is really useful for the assignment of optional parameters extracted from the url using the `params()` function.
+
+    dispatch('/hello/:name', 'hello');
+        function  hello()
+        {
+            # matching /hello/
+            set_or_default('name', params('name'),'John');
+            return render('Hello %s!'); // returns 'Hello John!' because params('name') was empty. Else it would have return params('name') value.
+        }
+    
+    
+    
+    
+
+### Layouts ###
+
+Templates may be rendered inside an other template: a layout.
+
+Layout may be set with the `layout` function:
+
+    layout('default_layout.php');
+
+or directly with the template rendering function    
+
+    render('index.html.php', 'default_layout.php');
+
+
+If layout value is `null`, rendering will be done without any layout.
+
+    render('index.html.php', null);
+
+### Formatted strings and inline templates ###
+
+Formatted string can be used like with  [`sprintf`](http://php.net/manual/function.sprintf.php):
+
+    set('num', 5);
+    set('tree');
+    render('There are %d monkeys in the %s') // returns 'There are 5 monkeys in the tree'
+
+It's also possible to provide a function name as a template. By this way, we can for example produce a single file application.
+
+    function html_message($vars){ extract($vars);?>
+        <h1>Title: <?=h($title)?></h1>
+        <p>Message:<br>
+           <?=h($msg)?></p>
+    <?}
+    
+    // in a request handling function
+    set('title', 'Hello!');
+    set('msg', 'There are 100 monkeys in the Chennai and bangalore');
+    render('html_message');
+
+### HTML Templates ###
+
+`html` function is used in the same way as `render`.
+A header specifies the proper HTTP `Content-type` (`text/html`) and encoding setting defined through options (utf8 by default).
+
+    html('my_template.html.php');
+
+### Templates XML ###
+
+`xml` function is used in the same way as `render`.
+A header specifies the proper HTTP `Content-type` (`text/xml`) and encoding setting defined through options (utf8 by default).
+
+    html('my_template.xml.php');
+
+### Templates CSS ###
+
+`css` function is used in the same way as `render`.
+A header specifies the proper HTTP `Content-type` (`text/css`) and encoding setting defined through options (utf8 by default).
+
+    css('screen.css.php');
+
+### Templates TXT ###
+
+`txt` function is used in the same way as `render`.
+A header specifies the proper HTTP `Content-type` (`text/plain`) and encoding setting defined through options (utf8 by default).
+
+    txt('index.txt.php');
+    
+### Templates JSON ###
+
+`json` is used the same way as 
+ [`json_encode`](http://php.net/manual/function.json-encode.php) function, and returns a string containing the JSON representation of a value.
+A header specifies the proper HTTP `Content-type` (`application/x-javascript`) and encoding setting defined through options (utf8 by default).
+
+    json($my_data);
+
+### Serving files ###
+
+The `render_file` function can render a file directly to the ouptut buffer.
+    
+    render_file(option('public_dir').'foo.jpg');
+
+A header specifies the proper HTTP `Content-type` depending on the file extension and, for text files, encoding setting defined through options (utf8 by default) .
+
+Output is temporized so that it can easily handle large files.
+
+### Captures ###
+
+[TODO] `content_for($name); endcontent();`
+
+## Before and after request ##
+
+You can define a `before` function that will be executed before each request. This is very useful to define a default layout or passing common variables to the templates
+
+    function before()
+    {
+        layout('default_layout.php');
+        set('site_title', 'My Website');
+    }
+
+
+An `after` output filter is also available. It's executed after each request and can apply a transformation to the output (except for `render_file` outputs  which are sent directly to the output buffer).
+
+    function after($output){
+        $config = array('indent' => TRUE,
+    	                'output-xhtml' => TRUE,
+    	                'wrap' => 200);
+
+    	$tidy = tidy_parse_string($output, $config, option('encoding'));
+    	return $tidy->cleanRepair();
+    }
+
+## Configuration ##
+
+You can define a `configure` that will be executed when application is launched (at the begining of the `run` execution ).
+You can define options inside it, a connection to a database ...
+
+    function configure()
+    {
+        $env = $_SERVER['HTTP_HOST'] == "localhost" ? ENV_DEVELOPMENT : ENV_PRODUCTION;
+        option('env', $env);
+        if(option('env') > ENV_PRODUCTION)
+    	{
+    		options('dsn', 'sqlite:db/development.db'));
+    	}
+    	else
+    	{
+    	    options('dsn', 'sqlite:db/production.db'));
+    	}
+        $GLOBALS['my_db_connexion'] = new PDO(option('dsn'));
+    }
+
+PHP files contained in the `option('lib_dir')` folder (`lib/` by default) are loaded with [`require_once`](http://php.net/manual/function.require-once.php) just before executing `configure`. So you can place in this folder all your PHP librairies an functions so that they will be loaded and available at application launch.
+
+## Options ##
+
+The `option` function allows you to define and access the options of the application.
+
+    option('env', ENV_PRODUCTION);
+    option('env'); // return ENV_PRODUCTION value
+    
+If the name of option is not specified, it returns an array of all the options set.
+
+You can use it to manage Limonade options and your own custom options in your application.
+
+Default Limonade options have the following values:
+
+    option('root_dir',        $root_dir); // this folder contains your main application file
+    option('base_path',          $base_path);
+    option('base_uri',           $base_uri); // set it manually if you use url_rewriting
+    option('limonade_dir',       dirname(__FILE__).'/'); // this fiolder contains the limonade.php main file
+    option('limonade_views_dir', dirname(__FILE__).'/limonade/views/');
+    option('limonade_public_dir',dirname(__FILE__).'/limonade/public/');
+    option('public_dir',         $root_dir.'/public/');
+    option('views_dir',          $root_dir.'/views/');
+    option('controllers_dir',    $root_dir.'/controllers/');
+    option('lib_dir',            $root_dir.'/lib/');
+    option('error_views_dir',    option('limonade_views_dir'));
+    option('env',                ENV_PRODUCTION);
+    option('debug',              true);
+    option('session',            LIM_SESSION_NAME); // true, false or the name of your session
+    option('encoding',           'utf-8');
+    option('x-sendfile',         0); // 0: disabled, 
+                                     // X-SENDFILE: for Apache and Lighttpd v. >= 1.5,
+                                     // X-LIGHTTPD-SEND-FILE: for Apache and Lighttpd v. < 1.5
+
+## Sessions ##
+
+Session starts automatically by defaut. Then you can access session variables like you use to do, with `$_SESSION` array.
+
+You can disable sessions with the `session` option.
+
+⌘ [see snippet example](http://gist.github.com/159327)
+
+### Flash ###
+
+Flash is a special use of sessions. A flash value will be available only on next request and will be deleted after. It's very useful to raise errors on a form or to notice a successful action.
+
+* `flash($name, $value...)` defines a flash for the next request
+* in views, you can get current flash values with the `$flash` array or `flash_now($name)` function.
+
+⌘ [see snippet example](http://gist.github.com/162680)
+
+## Helpers ##
+
+See sources or api for more about all available helpers.
+
+### url_for ###
+
+You can use the `url_for` function for rendering limonade urls. They will be well formed whatever the folder in the document root your application is installed on your web server.
+
+If you want to use url rewriting, you need to set explicitly the `base_uri` option ( default is `/your_file_path/?`)
+
+
+## Halting and error handling ##
+
+### Halt ###
+
+You can stop immediatly the execution of the application with the `halt` function. Errors will be handled by default Limonade error handlers or those you have defined.
+
+    halt(NOT_FOUND);
+    halt("En error occured in my app...");
+
+### Not Found ###
+
+By default, displays the `not_found` error output function and sends a _`404 NOT FOUND`_ HTTP header.
+
+    halt(NOT_FOUND);
+    halt(NOT_FOUND, "This product doesn't exists.");
+    
+To define a new view for this error, you can simply declare a `not_found` function 
+
+    function not_found($errno, $errstr, $errfile=null, $errline=null)
+    {
+        set('errno', $errno);
+        set('errstr', $errstr);
+        set('errfile', $errfile);
+        set('errline', $errline);
+        return html("show_not_found_errors.html.php");
+    }
+    
+### Server Error ###
+
+By default, displays the `server_error` error output function and sends a _`500 INTERNAL SERVER ERROR`_ HTTP header.
+
+    halt();
+    halt('Breaking bad!');
+    halt(SERVER_ERROR, "Not good...");
+    trigger_error("Wrong parameter", E_USER_ERROR);
+    
+PHP errors are also caught en sent to this error handler output.
+
+To define a new view for this error, you can simply declare a `server_error` function 
+
+    function server_error($errno, $errstr, $errfile=null, $errline=null)
+    {
+        $args = compact('errno', 'errstr', 'errfile', 'errline');	
+        return html("show_server_errors.html.php", error_layout(), $args);
+    }
+
+### Error layout ###
+
+Allows you to define and access a layout dedicated to errors.
+
+    error_layout('error_layout.php');
+    error_layout(); // return 'error_layout.php'
+
+### Error handling ###
+
+In addition to the common `NOT_FOUND` and `SERVER_ERROR` errors displays, Limonade can redirect precisely errors to your own functions.
+
+    error(E_USER_WARNING, 'my_notices')
+        function my_notices($errno, $errstr, $errfile, $errline)
+        {
+            // storing php warnings in a log file
+            // ...
+            status(SERVER_ERROR);
+            return html('<h1>Server Error</h1>');
+        }
+        
+`E_LIM_HTTP` means all HTTP errors
+
+    error(E_LIM_HTTP, 'my_http_errors')
+        function my_http_errors($errno, $errstr, $errfile, $errline)
+        {
+            status($errno);
+            return html('<h1>'.http_response_status_code($errno).'</h1>');
+        }
+    
+`E_LIM_PHP` means all PHP errors (sended by PHP or raised by the user through [`trigger_error`](http://php.net/manual/function.trigger-error.php) function).
+
+## Testing ##
+
+[TODO]
+
+## More ##
+
+* [Limonade web site](http://limonade.sofa-design.net/)
+* [Issue tracking / release planning](http://sofadesign.lighthouseapp.com/projects/29612-limonade/overview)
+* [Support / Discussions](http://groups.google.fr/group/limonade)
+
+
+
+
+
+        
